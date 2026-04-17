@@ -22,16 +22,22 @@ def run_pipeline(path: str, output_folder: str = None, output_format: str = "jso
         result = pipeline.process_image(item_path)
         
         # Terminal Output
-        print(f"Filename: {filename}")
-        if output_format == "json":
-            print(convert_to_json(result))
-        elif output_format == "yolo":
-            print(convert_to_yolo(result))
-        elif output_format == "both":
-            print("\nJSON:")
-            print(convert_to_json(result))
-            print("\nYOLO:")
-            print(convert_to_yolo(result))
+        print("=" * 50)
+        print(f"File: {filename}\n")
+        
+        if output_format in ("json", "both"):
+            print("  JSON:")
+            print(f"    category: {result.get('category')}")
+            print(f"    material: {result.get('material')}")
+            print(f"    caption: {result.get('caption')}")
+            
+        if output_format == "both":
+            print() # Blank line between JSON and YOLO
+            
+        if output_format in ("yolo", "both"):
+            print("  YOLO:")
+            yolo_content = convert_to_yolo(result)
+            print(f"    {yolo_content}")
         
         # Save to file if output_folder is provided
         if output_folder:

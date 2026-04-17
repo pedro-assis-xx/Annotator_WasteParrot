@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext
 from tkinter import ttk
+import threading
 from annotator.core.runner import run_pipeline
 
 class AnnotatorGUI:
@@ -75,21 +76,23 @@ class AnnotatorGUI:
         self.log_area.grid(row=7, column=0, columnspan=2, sticky="ew", pady=(5, 15))
 
         # --- Run Button Section ---
-        run_button = ttk.Button(
+        self.run_button = ttk.Button(
             main_container, 
             text="Run Annotation", 
             command=self.run_annotation,
             style="Run.TButton"
         )
-        run_button.pack(fill="x", side="bottom", ipady=5)
+        self.run_button.pack(fill="x", side="bottom", ipady=5)
 
     def update_log(self, message):
-        """Appends a message to the log area and ensures it scrolls to the end."""
-        self.log_area.configure(state='normal')
-        self.log_area.insert(tk.END, message + "\n")
-        self.log_area.configure(state='disabled')
-        self.log_area.see(tk.END)
-        self.root.update_idletasks() # Force UI refresh
+        """Appends a message to the log area safely from any thread."""
+        def append():
+            self.log_area.configure(state='normal')
+            self.log_area.insert(tk.END, message + "\n")
+            self.log_area.configure(state='disabled')
+            self.log_area.see(tk.END)
+        
+        self.root.after(0, append)
 
     def browse_input(self):
         """Opens a dialog to select the input folder."""
@@ -104,7 +107,7 @@ class AnnotatorGUI:
             self.output_folder_var.set(directory)
 
     def run_annotation(self):
-        """Validates inputs and runs the annotation pipeline with progress callback."""
+        """Validates inputs and runs the annotation pipeline in a background thread."""
         input_path = self.input_folder_var.get().strip()
         output_path = self.output_folder_var.get().strip()
         selected_format = self.format_var.get()
@@ -117,6 +120,9 @@ class AnnotatorGUI:
             messagebox.showerror("Error", "Output folder path cannot be empty.")
             return
 
+        # Disable UI elements during processing
+        self.run_button.configure(state="disabled")
+        
         # Clear log for a new run
         self.log_area.configure(state='normal')
         self.log_area.delete(1.0, tk.END)
@@ -128,26 +134,33 @@ class AnnotatorGUI:
         self.update_log(f"Format: {selected_format}")
         self.update_log("-" * 30)
 
-        # Progress callback function
-        def progress_callback(index, total, filename, result):
-            self.update_log(f"[{index}/{total}] {filename} → done")
+        def worker():
+            # Progress callback function
+            def progress_callback(index, total, filename, result):
+                self.update_log(f"[{index}/{total}] {filename} → done")
 
-        try:
-            # Execute pipeline with the callback
-            run_pipeline(
-                path=input_path, 
-                output_folder=output_path, 
-                output_format=selected_format, 
-                callback=progress_callback
-            )
-            
-            self.update_log("-" * 30)
-            self.update_log("Success: Annotation pipeline completed.")
-            messagebox.showinfo("Success", "Annotation pipeline completed successfully!")
-        except Exception as e:
-            error_msg = f"An error occurred: {str(e)}"
-            self.update_log(f"ERROR: {error_msg}")
-            messagebox.showerror("Error", error_msg)
+            try:
+                # Execute pipeline with the callback
+                run_pipeline(
+                    path=input_path, 
+                    output_folder=output_path, 
+                    output_format=selected_format, 
+                    callback=progress_callback
+                )
+                
+                self.update_log("-" * 30)
+                self.update_log("Success: Annotation pipeline completed.")
+                self.root.after(0, lambda: messagebox.showinfo("Success", "Annotation pipeline completed successfully!"))
+            except Exception as e:
+                error_msg = f"An error occurred: {str(e)}"
+                self.update_log(f"ERROR: {error_msg}")
+                self.root.after(0, lambda: messagebox.showerror("Error", error_msg))
+            finally:
+                # Re-enable the Run button
+                self.root.after(0, lambda: self.run_button.configure(state="normal"))
+
+        # Start the background thread
+        threading.Thread(target=worker, daemon=True).start()
 
 def main():
     root = tk.Tk()

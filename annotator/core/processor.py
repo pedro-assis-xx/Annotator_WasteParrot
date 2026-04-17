@@ -12,13 +12,34 @@ def validate_annotation(response_text: str) -> Dict[str, Any]:
         "caption": "Invalid model output"
     }
 
+    # Clean the response text from markdown code blocks
+    cleaned_text = response_text.strip()
+    if cleaned_text.startswith("```"):
+        # Remove starting ```json or ```
+        if cleaned_text.startswith("```json"):
+            cleaned_text = cleaned_text[len("```json"):]
+        else:
+            cleaned_text = cleaned_text[len("```"):]
+            
+        # Remove ending ```
+        if cleaned_text.endswith("```"):
+            cleaned_text = cleaned_text[:-3]
+    
+    cleaned_text = cleaned_text.strip()
+
     try:
         # Try to parse JSON
-        data = json.loads(response_text)
+        data = json.loads(cleaned_text)
         
-        # Check for required keys
-        if not all(k in data for k in ("category", "material", "caption")):
-            return fallback
+        # Ensure category and material exist
+        if "category" not in data:
+            data["category"] = "Other"
+        if "material" not in data:
+            data["material"] = "Unknown"
+            
+        # Handle missing caption
+        if "caption" not in data:
+            data["caption"] = "No caption provided"
         
         # Validate category
         if data["category"] not in WASTE_CATEGORIES:

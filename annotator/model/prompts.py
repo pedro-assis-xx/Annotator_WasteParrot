@@ -28,14 +28,15 @@ Your task is to analyze the provided image and output a structured JSON response
 You MUST choose the category from this list: {WASTE_CATEGORIES}. If unsure, use "Other".
 You MUST choose the material from this list: {MATERIAL_LABELS}.
 
-Output format MUST be:
+Output format MUST be a single JSON object with these fields:
 {{
   "category": "...",
   "material": "...",
   "caption": "..."
 }}
 
-Return ONLY JSON (no extra text)."""
+Return ONLY raw JSON. Do NOT wrap in markdown or code blocks. Do NOT include any text outside the JSON.
+ALWAYS include ALL three fields (category, material, caption)."""
 
 def get_annotation_prompt() -> str:
-    return "Analyze this image and provide the classification in the specified JSON format."
+    return "Analyze this image and provide the classification as a raw JSON object only. No markdown, no explanation."

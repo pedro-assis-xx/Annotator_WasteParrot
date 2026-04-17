@@ -45,6 +45,15 @@ python gui.py
 3. Select the **Output Format** (json, yolo, or both).
 4. Click **Run Annotation**. Progress will be shown in the live log panel.
 
+<p align="center">
+  <img
+    src="https://github.com/user-attachments/assets/bb4d814f-820b-4a05-b7b5-428fbc378328"
+    alt="gui"
+    width="500"
+  />
+</p>
+
+
 ### CLI (Command Line)
 Run the pipeline using `main.py`.
 
@@ -52,6 +61,14 @@ Run the pipeline using `main.py`.
 ```bash
 python main.py images/ output/ --format both
 ```
+<p align="center">
+  <img
+    src="https://github.com/user-attachments/assets/1e6ea7bd-60c5-4e6c-8acd-9a40c0f69fc4"
+    alt="cli"
+    width="800"
+  />
+</p>
+
 
 **Process a single image:**
 ```bash

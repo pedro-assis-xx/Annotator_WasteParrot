@@ -6,11 +6,13 @@ from annotator.utils.file_io import save_json_annotation, save_text_file, ensure
 from annotator.formats.yolo import convert_to_yolo
 from annotator.formats.json import convert_to_json
 
-def run_pipeline(path: str, output_folder: str = None, output_format: str = "json"):
+def run_pipeline(path: str, output_folder: str = None, output_format: str = "json", callback=None):
     """
     Runs the pipeline on a single image or a folder of images.
     If output_folder is provided, saves results to specified formats.
     Terminal output matches the selected output_format.
+    
+    callback signature: callback(index, total, filename, result)
     """
     pipeline = AnnotationPipeline()
     supported_extensions = ('.jpg', '.jpeg', '.png')
@@ -18,12 +20,12 @@ def run_pipeline(path: str, output_folder: str = None, output_format: str = "jso
     if output_folder:
         ensure_dir(output_folder)
 
-    def process_item(item_path: str, filename: str):
+    def process_item(item_path: str, filename: str, index: int, total: int):
         result = pipeline.process_image(item_path)
         
         # Terminal Output
         print("=" * 50)
-        print(f"File: {filename}\n")
+        print(f"[{index}/{total}] File: {filename}\n")
         
         if output_format in ("json", "both"):
             print("  JSON:")
@@ -53,17 +55,23 @@ def run_pipeline(path: str, output_folder: str = None, output_format: str = "jso
                 yolo_content = convert_to_yolo(result)
                 yolo_path = os.path.join(output_folder, f"{base_name}.txt")
                 save_text_file(yolo_content, yolo_path)
+        
+        # Report progress via callback
+        if callback:
+            callback(index, total, filename, result)
 
     if os.path.isdir(path):
         # Process folder
         files = [f for f in os.listdir(path) if f.lower().endswith(supported_extensions)]
-        for filename in sorted(files):
+        files = sorted(files)
+        total = len(files)
+        for i, filename in enumerate(files, 1):
             file_path = os.path.join(path, filename)
-            process_item(file_path, filename)
+            process_item(file_path, filename, i, total)
             print() # Extra newline for readability between entries
     elif os.path.isfile(path):
         # Process single file
-        process_item(path, os.path.basename(path))
+        process_item(path, os.path.basename(path), 1, 1)
     else:
         print(f"Error: Path is not a file or directory: {path}")
 

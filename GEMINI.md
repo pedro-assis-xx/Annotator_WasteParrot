@@ -4,42 +4,39 @@ This document provides a technical overview of the Annotator WasteParrot system 
 
 ## System Overview
 
-The system follows a linear end-to-end flow for processing images:
-**Input Path** (CLI) → **Runner** → **Pipeline** → **Model (Ollama)** → **Processor (Validation)** → **Formats** → **Output (Files/Terminal)**
+The system follows a modular architecture where core processing logic is shared between multiple interfaces:
+
+**Interface** (CLI/GUI) → **Runner** → **Pipeline** → **Model (Ollama)** → **Processor** → **Exporters**
 
 ## Key Modules
 
-- **`annotator/core/runner.py`**: Entry point for orchestration. Handles CLI arguments (`argparse`), manages batch/single processing, and coordinates format selection for terminal display and file saving.
-- **`annotator/core/pipeline.py`**: Coordinates the high-level data flow. Retrieves prompts, calls the model client, and passes the raw response to the processor.
-- **`annotator/core/processor.py`**: Responsible for sanitizing model output (removing markdown blocks) and validating it against the allowed taxonomy. Handles missing fields with defaults.
-- **`annotator/model/ollama_client.py`**: Low-level interface to the Ollama local API (`/api/generate`). Encodes images to base64 and handles HTTP communication.
-- **`annotator/model/prompts.py`**: Defines the system/user prompts and the strict taxonomy (Categories and Materials). Includes YOLO class ID mapping.
-- **`annotator/formats/json.py`**: Logic for exporting validated data to JSON format.
-- **`annotator/formats/yolo.py`**: Logic for converting validated JSON data into YOLO-formatted text strings (using fixed full-image bounding boxes).
-- **`annotator/utils/file_io.py`**: Helper functions for directory management and safely writing JSON/Text files to disk with overwrite warnings.
+- **`gui.py`**: Tkinter-based frontend. Implements a **threaded execution model** (using `threading`) to maintain UI responsiveness. It schedules thread-safe UI updates via `root.after()` and uses a progress log panel.
+- **`annotator/core/runner.py`**: The orchestration engine. Handles file discovery for batch processing and supports an optional **callback system** for real-time progress reporting (`[index/total] filename → done`).
+- **`annotator/core/pipeline.py`**: Manages the high-level VLM data flow, coordinating between the model client and the validation processor.
+- **`annotator/core/processor.py`**: Sanitizes raw model output and validates it against the allowed taxonomy.
+- **`annotator/model/ollama_client.py`**: Low-level HTTP interface to the local Ollama API (`/api/generate`).
+- **`annotator/model/prompts.py`**: Source of truth for the system prompt, waste categories, and material taxonomy.
+- **`annotator/formats/`**: Specialized exporters for JSON and YOLO.
+- **`annotator/utils/file_io.py`**: Safe file operations, including overwrite warnings and directory creation.
 
 ## Data Flow
 
-1.  **Image Loading**: Base64 encoding of the input image.
-2.  **Model Inference**: VLM (LLaVA) generates a raw text response based on strict formatting instructions.
-3.  **Sanitization**: `processor.py` strips markdown code blocks (e.g., ` ```json `) and extra whitespace.
-4.  **Validation**: Parsed JSON is checked against `WASTE_CATEGORIES` and `MATERIAL_LABELS`.
-5.  **Transformation**: The "source of truth" JSON is converted into the requested output formats (JSON/YOLO).
-6.  **Delivery**: Results are printed to the terminal and/or saved to the output directory.
+1.  **Orchestration**: `runner.py` iterates through input files.
+2.  **Inference**: `pipeline.py` sends base64 image data to the LLaVA model via Ollama.
+3.  **Sanitization & Validation**: `processor.py` ensures the model followed formatting rules and matches the taxonomy.
+4.  **Transformation**: The validated JSON is converted into the requested formats (JSON, YOLO).
+5.  **Reporting**: A callback notifies the UI (CLI or GUI) of the completion of each image.
+6.  **Persistence**: Files are saved to the designated output folder.
 
-## Output Formats
+## Design Decisions
 
-- **JSON**: Full metadata (Category, Material, Caption).
-- **YOLO**: Classification-style annotation with fixed coordinates (`0.5 0.5 1.0 1.0`) representing the full image.
-
-## Design Constraints
-
-- **Local-Only**: Dependencies are limited to local services (Ollama) to ensure data privacy and no cloud costs.
-- **Efficiency**: Only one model call is performed per image. All export formats are derived from the initial successful model response.
-- **Consistency**: JSON is treated as the primary internal representation and source of truth for all subsequent exports.
+- **Local-Only Inference**: Relies exclusively on local Ollama services to ensure data privacy and eliminate cloud latency/costs.
+- **JSON as Primary Source**: JSON is treated as the internal "source of truth." All other formats (like YOLO) are derived from the validated JSON metadata.
+- **Async reporting in Sync Pipeline**: While the pipeline runs synchronously within its thread, the callback system provides asynchronous-like updates to the user interface.
+- **Minimal Dependencies**: Keeps the core library light, relying on `requests` for API communication and `tkinter` for the GUI.
 
 ## Extension Guidelines
 
-- **Adding Formats**: Create a new module in `annotator/formats/` and integrate it into `runner.py`.
-- **Batch Features**: Modify `runner.py` to add parallel processing or advanced filtering logic.
-- **GUI**: Implement a wrapper around `run_pipeline` in a new top-level module (e.g., `gui.py`).
+- **New Formats**: Add a module to `annotator/formats/` and integrate it into `runner.py`.
+- **Taxonomy Changes**: Modify `WASTE_CATEGORIES` or `MATERIAL_LABELS` in `annotator/model/prompts.py`.
+- **UI Enhancements**: Add widgets to `AnnotatorGUI` in `gui.py`. Always ensure long-running logic remains inside the `worker` thread to prevent freezing.

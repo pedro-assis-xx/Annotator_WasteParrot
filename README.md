@@ -1,93 +1,84 @@
-# Annotator_WasteParrot
+# Annotator WasteParrot
 
-A modular Python pipeline for automated image annotation using a local vision-language model.
+Annotator WasteParrot is a modular Python-based pipeline for automated image annotation using local vision-language models (VLM). It leverages **Ollama** and the **LLaVA** model to perform inference without cloud dependencies, generating structured datasets for waste classification.
 
----
+## Features
 
-## Overview
+- **Single Image Processing**: Annotate a single image file.
+- **Batch Folder Processing**: Process all images (`.jpg`, `.jpeg`, `.png`) within a directory.
+- **Multiple Output Formats**: Supports JSON and YOLO (classification-style) exports.
+- **Automated Validation**: Ensures model output conforms to a strict taxonomy of categories and materials.
+- **Local Inference**: Runs entirely on your hardware via Ollama.
 
-Annotator is a tool that automatically converts raw images into structured annotations using a local vision-language model. It is designed for dataset generation in machine learning workflows.
+## Installation
 
-The system processes images, generates labels using AI, and exports structured datasets in multiple formats.
+### Prerequisites
 
----
+1.  **Ollama**: [Download and install Ollama](https://ollama.com/).
+2.  **LLaVA Model**: Pull the required model:
+    ```bash
+    ollama pull llava:13b
+    ```
 
-## Key Features
+### Setup
 
-- Automated image annotation pipeline
-- Local inference using Ollama + LLaVA (no cloud dependency)
-- Structured outputs (JSON / YOLO)
-- Config-driven prompts and categories
+Install Python dependencies:
+```bash
+pip install -r annotator/requirements.txt
+```
 
----
+## Usage
 
-## Model Setup
+Run the pipeline using `main.py`. The tool accepts an input path (file or folder), an optional output folder, and a format specification.
 
-This project uses:
+### Examples
 
-- Ollama (local model server)
-- LLaVA (vision-language model)
+**Process a single image and save JSON:**
+```bash
+python main.py image.jpg output/
+```
 
-The model runs locally at:
+**Batch process a folder:**
+```bash
+python main.py images/ output/
+```
 
-http://localhost:11434
+**Specify output format (json, yolo, or both):**
+```bash
+python main.py images/ output/ --format yolo
+python main.py images/ output/ --format both
+```
 
-No external API keys are required.
+## Output Formats
 
----
+### JSON (Default)
+Saves a `.json` file containing:
+- `category`: Predefined waste category.
+- `material`: Predominant material detected.
+- `caption`: A brief descriptive caption.
 
-## Project Structure
+### YOLO
+Saves a `.txt` file in YOLO format:
+`<class_id> <x_center> <y_center> <width> <height>`
 
-annotator/
-├── main.py
-├── config.json
-├── requirements.txt
-├── core/
-│ ├── runner.py
-│ ├── pipeline.py
-│ ├── processor.py
-├── model/
-│ ├── ollama_client.py
-│ ├── prompts.py
-├── formats/
-│ ├── json.py
-│ ├── yolo.py
-├── utils/
-│ ├── file_io.py
-│ ├── image_utils.py
-│ ├── logger.py
+*Note: As this tool currently performs classification, the bounding box is fixed to the entire image (`0.5 0.5 1.0 1.0`).*
 
+## Class Mapping (YOLO)
 
----
+| ID | Category |
+|----|----------|
+| 0 | Aluminum Structure/Struts |
+| 1 | Clothing |
+| 2 | Drink Pouch |
+| 3 | Gloves |
+| 4 | Nomex Bag |
+| 5 | Reclosable Bag |
+| 6 | Rehydratable Pouch |
+| 7 | Zotek F30 Aviation |
+| 8 | Other |
 
-## How It Works
+## Limitations
 
-1. Load images from input folder
-2. Send each image to LLaVA via Ollama API
-3. Model returns structured prediction
-4. Output is parsed and validated
-5. Results are saved in selected format
-
----
-
-## Output Format Example (JSON)
-
-```json
-{
-  "category": "Reclosable Bag",
-  "material": "polyethylene",
-  "caption": "A reclosable bag on the ground"
-}
-
-Requirements
-
-Install dependencies:
-	pip install -r requirements.txt
-
-Run
-	python main.py
-
-Notes
-Requires Ollama running locally before execution
-Designed for single-machine dataset generation
-Optimized for research and prototyping workflows
+- **Bounding Boxes**: Does not currently detect object boundaries; assumes the object of interest occupies the full image.
+- **Model Accuracy**: Results are dependent on the `llava:13b` model's performance.
+- **Single Object**: Optimized for images containing a single primary waste item.

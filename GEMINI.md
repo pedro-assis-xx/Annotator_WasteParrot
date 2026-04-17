@@ -1,70 +1,45 @@
-# Annotator WasteParrot - Project Context
+# Annotator WasteParrot - System Architecture
 
-## Project Overview
-Annotator WasteParrot is a modular Python-based pipeline designed for automated image annotation using local vision-language models (VLM). It leverages **Ollama** and the **LLaVA** model to perform inference without cloud dependencies. The primary goal is to generate structured datasets (category, material, caption) for waste classification and machine learning workflows.
+This document provides a technical overview of the Annotator WasteParrot system for AI agents and developers.
 
-### Core Technologies
-- **Language:** Python 3.10+
-- **Inference Engine:** Ollama (running locally at `http://localhost:11434`)
-- **VLM Model:** `llava:13b` (configurable)
-- **Libraries:** `requests` for API communication
+## System Overview
 
-### Architecture
-- `annotator/main.py`: Entry point for CLI usage.
-- `annotator/core/`: Contains the logic for orchestration (`pipeline.py`) and execution (`runner.py`).
-- `annotator/model/`: Handles Ollama API interaction (`ollama_client.py`) and prompt engineering (`prompts.py`).
-- `annotator/formats/`: (Extensible) Modules for exporting data in various formats (e.g., JSON, YOLO).
-- `annotator/utils/`: Helper modules for file I/O, imaging, and logging.
+The system follows a linear end-to-end flow for processing images:
+**Input Path** (CLI) → **Runner** → **Pipeline** → **Model (Ollama)** → **Processor (Validation)** → **Formats** → **Output (Files/Terminal)**
 
----
+## Key Modules
 
-## Building and Running
+- **`annotator/core/runner.py`**: Entry point for orchestration. Handles CLI arguments (`argparse`), manages batch/single processing, and coordinates format selection for terminal display and file saving.
+- **`annotator/core/pipeline.py`**: Coordinates the high-level data flow. Retrieves prompts, calls the model client, and passes the raw response to the processor.
+- **`annotator/core/processor.py`**: Responsible for sanitizing model output (removing markdown blocks) and validating it against the allowed taxonomy. Handles missing fields with defaults.
+- **`annotator/model/ollama_client.py`**: Low-level interface to the Ollama local API (`/api/generate`). Encodes images to base64 and handles HTTP communication.
+- **`annotator/model/prompts.py`**: Defines the system/user prompts and the strict taxonomy (Categories and Materials). Includes YOLO class ID mapping.
+- **`annotator/formats/json.py`**: Logic for exporting validated data to JSON format.
+- **`annotator/formats/yolo.py`**: Logic for converting validated JSON data into YOLO-formatted text strings (using fixed full-image bounding boxes).
+- **`annotator/utils/file_io.py`**: Helper functions for directory management and safely writing JSON/Text files to disk with overwrite warnings.
 
-### Prerequisites
-1.  **Ollama installed and running**: [Download Ollama](https://ollama.com/)
-2.  **Pull the model**: 
-    ```bash
-    ollama pull llava:13b
-    ```
+## Data Flow
 
-### Installation
-Install dependencies via pip:
-```bash
-pip install -r annotator/requirements.txt
-```
+1.  **Image Loading**: Base64 encoding of the input image.
+2.  **Model Inference**: VLM (LLaVA) generates a raw text response based on strict formatting instructions.
+3.  **Sanitization**: `processor.py` strips markdown code blocks (e.g., ` ```json `) and extra whitespace.
+4.  **Validation**: Parsed JSON is checked against `WASTE_CATEGORIES` and `MATERIAL_LABELS`.
+5.  **Transformation**: The "source of truth" JSON is converted into the requested output formats (JSON/YOLO).
+6.  **Delivery**: Results are printed to the terminal and/or saved to the output directory.
 
-### Execution
-To annotate a single image:
-```bash
-python -m annotator.main <path_to_image>
-```
-Alternative (runner direct):
-```bash
-python -m annotator.core.runner <path_to_image>
-```
+## Output Formats
 
----
+- **JSON**: Full metadata (Category, Material, Caption).
+- **YOLO**: Classification-style annotation with fixed coordinates (`0.5 0.5 1.0 1.0`) representing the full image.
 
-## Development Conventions
+## Design Constraints
 
-### Coding Style
-- **Modular Design**: AI logic is separated from orchestration and formatting.
-- **Type Hinting**: Extensive use of Python type hints (`Dict`, `Any`, etc.).
-- **Error Handling**: Graceful failure in `ollama_client.py` returning a structured error JSON instead of crashing.
+- **Local-Only**: Dependencies are limited to local services (Ollama) to ensure data privacy and no cloud costs.
+- **Efficiency**: Only one model call is performed per image. All export formats are derived from the initial successful model response.
+- **Consistency**: JSON is treated as the primary internal representation and source of truth for all subsequent exports.
 
-### Prompt Engineering
-- The system uses a strict taxonomy defined in `annotator/model/prompts.py`.
-- Categories and Materials are restricted to predefined lists to ensure consistency for ML dataset generation.
-- The VLM is forced to output JSON via the `format: "json"` parameter in the Ollama API.
+## Extension Guidelines
 
-### Testing
-- Tests are located in `annotator/tests/`. 
-- **TODO**: Implement comprehensive integration tests for the Ollama client and pipeline.
-
----
-
-## Key Files
-- `annotator/main.py`: Main entry point.
-- `annotator/model/ollama_client.py`: The low-level interface to the local AI model.
-- `annotator/model/prompts.py`: Defines the taxonomy and system instructions.
-- `annotator/core/pipeline.py`: Coordinates the data flow from image to annotation.
+- **Adding Formats**: Create a new module in `annotator/formats/` and integrate it into `runner.py`.
+- **Batch Features**: Modify `runner.py` to add parallel processing or advanced filtering logic.
+- **GUI**: Implement a wrapper around `run_pipeline` in a new top-level module (e.g., `gui.py`).

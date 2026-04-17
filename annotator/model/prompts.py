@@ -11,6 +11,9 @@ WASTE_CATEGORIES = [
     "Other"
 ]
 
+# Fixed mapping for YOLO class IDs
+CATEGORY_TO_ID = {category: i for i, category in enumerate(WASTE_CATEGORIES)}
+
 MATERIAL_LABELS = [
     "Aluminum",
     "Cotton",
@@ -40,3 +43,4 @@ ALWAYS include ALL three fields (category, material, caption)."""
 
 def get_annotation_prompt() -> str:
     return "Analyze this image and provide the classification as a raw JSON object only. No markdown, no explanation."
+
